@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Portfolio Tracker</title>
+    <!-- Tailwind CSS CDN untuk desain responsif -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Menggunakan font Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Latar belakang gelap futuristik */
+            background-color: #1A202C; /* Dark Slate Gray */
+            color: #E2E8F0; /* Light text for contrast */
+        }
+        /* Style kustom untuk diagram agar responsif */
+        #chartContainer {
+            position: relative;
+            height: 300px; /* Tinggi default untuk mobile */
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        @media (min-width: 768px) {
+            #chartContainer {
+                height: 400px;
+                max-width: 600px;
+            }
+        }
+        /* Efek fokus neon pada input */
+        .neon-focus:focus {
+            outline: none;
+            border-color: #06b6d4; /* Cyan-500 */
+            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.5);
+        }
+    </style>
+    <!-- Chart.js CDN untuk Diagram Lingkaran -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body class="p-4 md:p-8">
+    <div id="loadingIndicator" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
+        <p class="ml-4 text-white">Memuat Data dari LocalStorage...</p>
+    </div>
+
+    <!-- Konten Utama Aplikasi -->
+    <div class="max-w-7xl mx-auto">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-cyan-400 drop-shadow-lg">
+                <span class="border-b-4 border-cyan-500 pb-1">CRYPTO PORTFOLIO ANALYZER</span>
+            </h1>
+            <p class="text-gray-400 mt-2">Alokasi Aset & Visualisasi Data Real-Time</p>
+        </header>
+
+        <!-- Layout Responsif: Diagram di atas/kiri, Kontrol di bawah/kanan -->
+        <div class="flex flex-col md:flex-row gap-8">
+            
+            <!-- Kolom Diagram (Chart) -->
+            <div class="md:w-1/2 w-full p-6 bg-gray-800 shadow-2xl rounded-xl border border-cyan-700/50">
+                <h2 class="text-2xl font-bold mb-4 text-cyan-400">Distribusi Aset</h2>
+                <div id="chartContainer">
+                    <canvas id="portfolioChart"></canvas>
+                </div>
+                <div class="mt-6 p-4 bg-cyan-900/30 rounded-lg text-center border border-cyan-600 shadow-xl">
+                    <p class="text-lg font-semibold text-cyan-300">Total Nilai Portofolio (IDR):</p>
+                    <p id="totalValueDisplay" class="text-3xl font-extrabold text-white mt-1">Rp 0</p>
+                </div>
+            </div>
+
+            <!-- Kolom Kontrol (CRUD) -->
+            <div class="md:w-1/2 w-full">
+                <!-- Form Tambah/Edit Aset -->
+                <div class="p-6 bg-gray-800 shadow-2xl rounded-xl mb-6 border border-cyan-700/50">
+                    <h2 class="text-2xl font-bold mb-4 text-cyan-400" id="formTitle">INPUT ASET BARU</h2>
+                    <form id="assetForm" class="space-y-4">
+                        <input type="hidden" id="assetId">
+                        <div>
+                            <label for="assetName" class="block text-sm font-medium text-gray-300">Nama Aset (Contoh: BTC, SOL)</label>
+                            <input type="text" id="assetName" required placeholder="Masukkan nama aset"
+                                class="neon-focus mt-1 block w-full rounded-md border-gray-600 bg-gray-700 text-white shadow-sm p-3 border focus:ring-cyan-500 focus:border-cyan-500 transition duration-150">
+                        </div>
+                        <div>
+                            <label for="assetValue" class="block text-sm font-medium text-gray-300">Nilai Aset (Rupiah)</label>
+                            <input type="number" id="assetValue" required placeholder="Masukkan nilai total dalam Rupiah (misal: 200000)" min="0"
+                                class="neon-focus mt-1 block w-full rounded-md border-gray-600 bg-gray-700 text-white shadow-sm p-3 border focus:ring-cyan-500 focus:border-cyan-500 transition duration-150">
+                        </div>
+                        <div class="flex space-x-2">
+                            <button type="submit" id="submitButton"
+                                class="w-full py-3 px-4 border border-transparent rounded-md shadow-lg text-gray-900 bg-cyan-400 hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-400 focus:ring-offset-gray-800 font-bold transition duration-200 ease-in-out uppercase">
+                                Simpan Aset
+                            </button>
+                            <button type="button" id="cancelEditButton" style="display:none;"
+                                class="py-3 px-4 border border-gray-600 rounded-md shadow-sm text-gray-300 bg-gray-700 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 focus:ring-offset-gray-800 font-semibold transition duration-150 ease-in-out">
+                                Batal
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Daftar Aset -->
+                <div class="p-6 bg-gray-800 shadow-2xl rounded-xl border border-cyan-700/50">
+                    <h2 class="text-2xl font-bold mb-4 text-cyan-400">DAFTAR INVESTASI</h2>
+                    <ul id="assetsList" class="space-y-3">
+                        <li class="text-gray-500 italic p-3">Belum ada aset ditambahkan.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOCALSTORAGE & CHART LOGIC -->
+    <script>
+        const STORAGE_KEY = 'cryptoPortfolio_v2'; // Key LocalStorage baru
+        let portfolioChart;
+        let portfolioData = [];
+        const loadingIndicator = document.getElementById('loadingIndicator');
+
+        // --- LOCALSTORAGE HANDLERS ---
+        
+        function loadAssetsFromStorage() {
+            const storedData = localStorage.getItem(STORAGE_KEY);
+            try {
+                // Menggunakan IDR untuk tampilan, tapi data tetap numerik
+                portfolioData = storedData ? JSON.parse(storedData) : [];
+            } catch (e) {
+                console.error("Gagal memuat atau parsing data dari localStorage.", e);
+                portfolioData = [];
+            }
+            updateUI();
+            drawChart();
+            loadingIndicator.style.display = 'none';
+        }
+
+        function saveAssetsToStorage() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(portfolioData));
+        }
+
+        // --- UI & CHART LOGIC ---
+
+        // Fungsi untuk memperbarui tampilan daftar aset
+        function updateUI() {
+            const list = document.getElementById('assetsList');
+            const totalValueDisplay = document.getElementById('totalValueDisplay');
+            list.innerHTML = '';
+            let totalValue = 0;
+
+            if (portfolioData.length === 0) {
+                list.innerHTML = '<li class="text-gray-500 italic p-3 border-b border-gray-700">Belum ada aset ditambahkan.</li>';
+                totalValueDisplay.textContent = formatCurrency(0);
+                return;
+            }
+
+            portfolioData.forEach(asset => {
+                totalValue += asset.value;
+                const percentage = totalValue > 0 ? ((asset.value / totalValue) * 100).toFixed(2) : 0;
+                
+                const listItem = document.createElement('li');
+                listItem.className = 'flex justify-between items-center p-3 border-b border-gray-700 hover:bg-gray-700 rounded-md transition duration-150';
+                listItem.innerHTML = `
+                    <div class="flex-1 min-w-0 mr-4">
+                        <span class="font-bold text-lg text-white">${asset.name}</span>
+                        <!-- Menggunakan formatCurrency() untuk memastikan nominal Rp 200.000, bukan Rp 200 -->
+                        <p class="text-gray-400 text-sm">${formatCurrency(asset.value)} <span class="text-cyan-400 font-semibold ml-2">(${percentage}%)</span></p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button onclick="editAsset('${asset.id}', '${asset.name}', ${asset.value})"
+                            class="text-sm px-3 py-1 rounded-md text-gray-900 bg-yellow-400 hover:bg-yellow-500 transition duration-150 font-medium">
+                            EDIT
+                        </button>
+                        <button onclick="deleteAsset('${asset.id}')"
+                            class="text-sm px-3 py-1 rounded-md text-white bg-red-600 hover:bg-red-700 transition duration-150 font-medium">
+                            HAPUS
+                        </button>
+                    </div>
+                `;
+                list.appendChild(listItem);
+            });
+
+            totalValueDisplay.textContent = formatCurrency(totalValue);
+        }
+
+        // Fungsi untuk menggambar atau memperbarui Diagram Lingkaran
+        function drawChart() {
+            const ctx = document.getElementById('portfolioChart').getContext('2d');
+            
+            const labels = portfolioData.map(a => a.name);
+            const data = portfolioData.map(a => a.value);
+
+            // Palet warna futuristik/neon
+            const backgroundColors = data.map((_, index) => {
+                const colors = [
+                    '#06B6D4', // Cyan
+                    '#34D399', // Emerald
+                    '#F472B6', // Pink
+                    '#A78BFA', // Violet
+                    '#F59E0B', // Amber
+                    '#10B981', // Green
+                    '#6366F1', // Indigo
+                    '#D946EF'  // Fuchsia
+                ];
+                return colors[index % colors.length];
+            });
+
+            const chartData = {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: backgroundColors,
+                    hoverOffset: 8,
+                    borderWidth: 1,
+                    borderColor: '#1f2937' // Border gelap
+                }]
+            };
+
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            color: '#E2E8F0', // Warna teks legend
+                            font: {
+                                family: 'Inter',
+                                size: 14,
+                            },
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(31, 41, 55, 0.9)', // Tooltip gelap
+                        bodyColor: '#E2E8F0',
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (label) { label += ': '; }
+                                if (context.parsed !== null) {
+                                    const total = context.dataset.data.reduce((sum, value) => sum + value, 0);
+                                    const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(2) : 0;
+                                    label += `${formatCurrency(context.parsed)} (${percentage}%)`;
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            };
+
+            if (portfolioChart) {
+                // Perbarui diagram yang sudah ada
+                portfolioChart.data = chartData;
+                portfolioChart.options = chartOptions;
+                portfolioChart.update();
+            } else {
+                // Buat diagram baru
+                portfolioChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: chartData,
+                    options: chartOptions,
+                });
+            }
+        }
+
+        // --- CRUD LOCALSTORAGE FUNCTIONS ---
+
+        // Fungsi Handler Form (Menambah/Mengedit)
+        document.getElementById('assetForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const id = document.getElementById('assetId').value;
+            const name = document.getElementById('assetName').value.trim();
+            const value = parseFloat(document.getElementById('assetValue').value);
+
+            if (!name || isNaN(value) || value < 0) {
+                alertMessage("Nama dan Nilai Aset harus valid.", 'error');
+                return;
+            }
+
+            loadingIndicator.style.display = 'flex';
+
+            if (id) {
+                // UPDATE: Edit Aset
+                const index = portfolioData.findIndex(asset => asset.id === id);
+                if (index !== -1) {
+                    portfolioData[index].name = name;
+                    portfolioData[index].value = value;
+                    alertMessage("Aset berhasil diperbarui.", 'success');
+                } else {
+                    alertMessage("Gagal memperbarui: Aset tidak ditemukan.", 'error');
+                }
+            } else {
+                // CREATE: Tambah Aset Baru
+                const newAsset = {
+                    // LocalStorage tidak menyediakan ID, jadi kita buat sendiri
+                    id: crypto.randomUUID(), 
+                    name,
+                    value,
+                    createdAt: new Date().toISOString()
+                };
+                portfolioData.push(newAsset);
+                alertMessage("Aset berhasil ditambahkan.", 'success');
+            }
+            
+            saveAssetsToStorage();
+            loadAssetsFromStorage(); // Muat ulang data
+            resetForm();
+            loadingIndicator.style.display = 'none';
+        });
+
+        // Fungsi untuk mengisi form saat tombol Edit diklik
+        window.editAsset = (id, name, value) => {
+            document.getElementById('assetId').value = id;
+            document.getElementById('assetName').value = name;
+            document.getElementById('assetValue').value = value;
+            document.getElementById('formTitle').textContent = 'EDIT ASET';
+            document.getElementById('submitButton').textContent = 'PERBARUI';
+            document.getElementById('cancelEditButton').style.display = 'inline-block';
+            window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll ke atas ke form
+        };
+
+        // Fungsi untuk membatalkan mode edit
+        document.getElementById('cancelEditButton').addEventListener('click', resetForm);
+        
+        function resetForm() {
+            document.getElementById('assetForm').reset();
+            document.getElementById('assetId').value = '';
+            document.getElementById('formTitle').textContent = 'INPUT ASET BARU';
+            document.getElementById('submitButton').textContent = 'Simpan Aset';
+            document.getElementById('cancelEditButton').style.display = 'none';
+        }
+
+        // Fungsi untuk menghapus aset
+        window.deleteAsset = (id) => {
+            if (!confirmMessage('Apakah Anda yakin ingin menghapus aset ini?')) return;
+
+            loadingIndicator.style.display = 'flex';
+            
+            const initialLength = portfolioData.length;
+            portfolioData = portfolioData.filter(asset => asset.id !== id);
+
+            if (portfolioData.length < initialLength) {
+                saveAssetsToStorage();
+                loadAssetsFromStorage();
+                alertMessage("Aset berhasil dihapus.", 'success');
+            } else {
+                alertMessage("Gagal menghapus aset: Aset tidak ditemukan.", 'error');
+            }
+            loadingIndicator.style.display = 'none';
+        };
+
+
+        // --- UTILITY FUNCTIONS ---
+
+        // Konfirmasi kustom (menggantikan window.confirm)
+        function confirmMessage(message) {
+            return window.prompt(`KONFIRMASI: ${message} (Ketik 'YA' untuk melanjutkan)`, 'TIDAK').toUpperCase() === 'YA';
+        }
+        
+        // Pesan alert kustom (menggantikan window.alert)
+        function alertMessage(message, type) {
+            console.log(`[${type.toUpperCase()}] ${message}`);
+            const notif = document.createElement('div');
+            notif.textContent = message;
+            // Gunakan warna neon yang sesuai dengan tema
+            const colorClass = type === 'success' ? 'bg-emerald-600 shadow-emerald-500/50' : 'bg-red-600 shadow-red-500/50';
+            notif.className = `fixed bottom-4 right-4 p-4 rounded-lg shadow-xl text-white z-50 transition-opacity duration-300 ${colorClass}`;
+            document.body.appendChild(notif);
+            setTimeout(() => {
+                notif.style.opacity = '0';
+                setTimeout(() => notif.remove(), 500);
+            }, 3000);
+        }
+
+        // Format angka ke mata uang IDR
+        function formatCurrency(amount) {
+            // Memastikan output Rupiah menggunakan pemisah ribuan (titik)
+            return new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR',
+                minimumFractionDigits: 0,
+                useGrouping: true 
+            }).format(amount);
+        }
+
+        // Inisialisasi aplikasi saat jendela dimuat
+        window.onload = loadAssetsFromStorage;
+
+    </script>
+</body>
+</html>
